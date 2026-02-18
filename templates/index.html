@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digit Recognition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #000;
+            color: #fff;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .page {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 72px 24px 64px;
+        }
+
+        /* ── Header ── */
+        .header {
+            margin-bottom: 56px;
+        }
+
+        .header h1 {
+            font-size: 52px;
+            font-weight: 800;
+            letter-spacing: -2px;
+            line-height: 1;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 15px;
+            color: #fff;
+            font-weight: 400;
+            opacity: 0.5;
+        }
+
+        /* ── Grid ── */
+        .grid {
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 56px;
+            align-items: start;
+        }
+
+        @media (max-width: 850px) {
+            .grid { grid-template-columns: 1fr; gap: 40px; }
+            .header h1 { font-size: 36px; }
+        }
+
+        /* ── Labels ── */
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2.5px;
+            color: #fff;
+            margin-bottom: 20px;
+        }
+
+        /* ── Canvas ── */
+        .canvas-col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .canvas-frame {
+            border: 1px solid #fff;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            line-height: 0;
+        }
+
+        #drawCanvas {
+            display: block;
+            width: 100%;
+            height: 418px;
+            cursor: crosshair;
+            background: #000;
+            touch-action: none;
+        }
+
+        /* ── Pen slider ── */
+        .pen-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .pen-row label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #fff;
+            opacity: 0.5;
+            white-space: nowrap;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 1px;
+            background: #fff;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        /* ── Buttons ── */
+        .btn-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px 0;
+            border: 1px solid #fff;
+            border-radius: 0;
+            background: transparent;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            transition: background 0.1s, color 0.1s;
+        }
+
+        .btn:hover {
+            background: #fff;
+            color: #000;
+        }
+
+        .btn-fill {
+            background: #fff;
+            color: #000;
+        }
+
+        .btn-fill:hover {
+            background: #ccc;
+            border-color: #ccc;
+        }
+
+        .hint {
+            text-align: center;
+            font-size: 11px;
+            color: #fff;
+            opacity: 0.25;
+            margin-top: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .hint kbd {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            border: 1px solid rgba(255,255,255,0.25);
+            padding: 1px 5px;
+            border-radius: 2px;
+        }
+
+        /* ── Result area ── */
+        .result-col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .result-box {
+            text-align: center;
+            padding: 28px 0 36px;
+            border-bottom: 1px solid #fff;
+            margin-bottom: 36px;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .waiting {
+            font-size: 14px;
+            color: #fff;
+            opacity: 0.25;
+            font-weight: 400;
+        }
+
+        .big-digit {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 140px;
+            font-weight: 700;
+            line-height: 1;
+            color: #fff;
+            opacity: 0;
+            transform: translateY(24px);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .big-digit.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .conf-text {
+            margin-top: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: #fff;
+            opacity: 0.5;
+        }
+
+        .conf-text strong {
+            opacity: 1;
+            font-weight: 700;
+        }
+
+        /* ── Spinner ── */
+        .spinner {
+            display: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.15);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.5s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Probability bars ── */
+        .bars {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            height: 28px;
+        }
+
+        .bar-digit {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+            font-weight: 700;
+            width: 16px;
+            text-align: right;
+            color: #fff;
+            opacity: 0.2;
+            transition: opacity 0.3s;
+        }
+
+        .bar-digit.on { opacity: 1; }
+
+        .bar-track {
+            flex: 1;
+            height: 4px;
+            background: rgba(255,255,255,0.08);
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            width: 0%;
+            background: #fff;
+            transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .bar-pct {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            width: 50px;
+            text-align: right;
+            color: #fff;
+            opacity: 0.2;
+            transition: opacity 0.3s;
+        }
+
+        .bar-pct.on { opacity: 1; }
+
+        /* ── Footer ── */
+        .footer {
+            margin-top: 64px;
+            padding-top: 28px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .stat-k {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #fff;
+            opacity: 0.25;
+        }
+
+        .stat-v {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            <h1>Digit Recognition</h1>
+            <p>Draw a number. Get a prediction.</p>
+        </div>
+
+        <div class="grid">
+            <div class="canvas-col">
+                <div class="section-label">Canvas</div>
+                <div class="pen-row">
+                    <label>Stroke</label>
+                    <input type="range" id="penSize" min="10" max="40" value="22">
+                </div>
+                <div class="canvas-frame">
+                    <canvas id="drawCanvas" width="420" height="420"></canvas>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-fill" onclick="predict()">Predict</button>
+                    <button class="btn" onclick="clearCanvas()">Clear</button>
+                </div>
+                <div class="hint"><kbd>Enter</kbd> predict &nbsp;&middot;&nbsp; <kbd>Esc</kbd> clear</div>
+            </div>
+
+            <div class="result-col">
+                <div class="section-label">Result</div>
+                <div class="result-box" id="resultBox">
+                    <span class="waiting" id="waitMsg">Waiting for input</span>
+                    <div class="spinner" id="spinner"></div>
+                    <div class="big-digit" id="bigDigit">0</div>
+                    <div class="conf-text" id="confLine" style="display:none">
+                        <strong id="confVal">0%</strong> confidence
+                    </div>
+                </div>
+
+                <div class="section-label">Distribution</div>
+                <div class="bars" id="bars"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="stat">
+                <span class="stat-k">Algorithm</span>
+                <span class="stat-v">K-Nearest Neighbors</span>
+            </div>
+            <div class="stat">
+                <span class="stat-k">K</span>
+                <span class="stat-v">3</span>
+            </div>
+            <div class="stat">
+                <span class="stat-k">Training</span>
+                <span class="stat-v">33,600 samples</span>
+            </div>
+            <div class="stat">
+                <span class="stat-k">Accuracy</span>
+                <span class="stat-v">96.67%</span>
+            </div>
+            <div class="stat">
+                <span class="stat-k">Input</span>
+                <span class="stat-v">28 x 28 px</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ── Canvas ──
+        const canvas = document.getElementById('drawCanvas');
+        const ctx = canvas.getContext('2d');
+        const penSlider = document.getElementById('penSize');
+        let drawing = false, lx = 0, ly = 0, drawn = false;
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = +penSlider.value;
+
+        penSlider.oninput = () => ctx.lineWidth = +penSlider.value;
+
+        function pos(e) {
+            const r = canvas.getBoundingClientRect();
+            const s = e.touches ? e.touches[0] : e;
+            return {
+                x: (s.clientX - r.left) * (canvas.width / r.width),
+                y: (s.clientY - r.top) * (canvas.height / r.height)
+            };
+        }
+
+        function down(e) {
+            e.preventDefault(); drawing = true; drawn = true;
+            const p = pos(e); lx = p.x; ly = p.y;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff'; ctx.fill();
+        }
+
+        function move(e) {
+            e.preventDefault(); if (!drawing) return;
+            const p = pos(e);
+            ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(p.x, p.y); ctx.stroke();
+            lx = p.x; ly = p.y;
+        }
+
+        function up(e) { if (e) e.preventDefault(); drawing = false; }
+
+        canvas.addEventListener('mousedown', down);
+        canvas.addEventListener('mousemove', move);
+        canvas.addEventListener('mouseup', up);
+        canvas.addEventListener('mouseleave', up);
+        canvas.addEventListener('touchstart', down);
+        canvas.addEventListener('touchmove', move);
+        canvas.addEventListener('touchend', up);
+
+        function clearCanvas() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawn = false;
+            document.getElementById('waitMsg').style.display = '';
+            document.getElementById('bigDigit').classList.remove('visible');
+            document.getElementById('confLine').style.display = 'none';
+            for (let i = 0; i < 10; i++) {
+                document.getElementById('f' + i).style.width = '0%';
+                document.getElementById('d' + i).classList.remove('on');
+                const p = document.getElementById('p' + i);
+                p.classList.remove('on'); p.textContent = '\u2014';
+            }
+        }
+
+        // ── Predict ──
+        async function predict() {
+            if (!drawn) return;
+            const wait = document.getElementById('waitMsg');
+            const spin = document.getElementById('spinner');
+            const digit = document.getElementById('bigDigit');
+            const conf = document.getElementById('confLine');
+
+            wait.style.display = 'none';
+            digit.classList.remove('visible');
+            conf.style.display = 'none';
+            spin.style.display = 'block';
+
+            try {
+                const r = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: canvas.toDataURL('image/png') })
+                });
+                const data = await r.json();
+                spin.style.display = 'none';
+
+                digit.textContent = data.prediction;
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(() => digit.classList.add('visible'))
+                );
+
+                conf.style.display = '';
+                document.getElementById('confVal').textContent = data.confidence + '%';
+
+                data.probabilities.forEach((v, i) => {
+                    setTimeout(() => {
+                        document.getElementById('f' + i).style.width = v + '%';
+                        const isTop = i === data.prediction;
+                        document.getElementById('d' + i).className = 'bar-digit' + (isTop ? ' on' : '');
+                        const pEl = document.getElementById('p' + i);
+                        pEl.className = 'bar-pct' + (isTop ? ' on' : '');
+                        pEl.textContent = v > 0.1 ? v.toFixed(1) + '%' : '\u2014';
+                    }, i * 25);
+                });
+            } catch (e) {
+                spin.style.display = 'none';
+                wait.style.display = '';
+                wait.textContent = 'Error';
+                console.error(e);
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter') predict();
+            if (e.key === 'Escape') clearCanvas();
+        });
+
+        // ── Init bars ──
+        (function () {
+            const el = document.getElementById('bars');
+            for (let i = 0; i < 10; i++) {
+                el.innerHTML += `<div class="bar-row">
+                    <span class="bar-digit" id="d${i}">${i}</span>
+                    <div class="bar-track"><div class="bar-fill" id="f${i}"></div></div>
+                    <span class="bar-pct" id="p${i}">&mdash;</span>
+                </div>`;
+            }
+        })();
+    </script>
+</body>
+</html>
