@@ -43,7 +43,7 @@ def find_best_k(X_train, X_test, y_train, y_test, k_range=range(1, 16)):
     accuracies = []
 
     for k in k_range:
-        knn = KNeighborsClassifier(n_neighbors=k, algorithm='auto', n_jobs=-1)
+        knn = KNeighborsClassifier(n_neighbors=k, weights='distance', algorithm='auto', n_jobs=-1)
         knn.fit(X_train, y_train)
         acc = accuracy_score(y_test, knn.predict(X_test))
         accuracies.append(acc)
@@ -74,7 +74,7 @@ def train_and_evaluate(X_train, X_test, y_train, y_test, k):
     """Train the final KNN model and evaluate it."""
     print(f'\nTraining final model with K={k}...')
 
-    model = KNeighborsClassifier(n_neighbors=k, algorithm='auto', n_jobs=-1)
+    model = KNeighborsClassifier(n_neighbors=k, weights='distance', algorithm='auto', n_jobs=-1)
 
     start = time.time()
     model.fit(X_train, y_train)
