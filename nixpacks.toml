@@ -2,7 +2,7 @@
 nixPkgs = ["python312", "nodejs_18"]
 
 [phases.install]
-cmds = ["pip install -r backend/requirements.txt"]
+cmds = ["python3 -m ensurepip --upgrade", "python3 -m pip install -r backend/requirements.txt"]
 
 [start]
-cmd = "cd backend && python app.py"
+cmd = "cd backend && python3 app.py"
