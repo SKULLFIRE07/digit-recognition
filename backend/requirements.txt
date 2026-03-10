@@ -1,0 +1,10 @@
+flask>=3.0
+flask-cors
+torch>=2.0
+torchvision>=0.15
+numpy
+pillow
+scipy
+matplotlib
+seaborn
+scikit-learn

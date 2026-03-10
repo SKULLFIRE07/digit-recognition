@@ -1,152 +1,153 @@
-# Handwritten Digit Recognition
+# CharacterAI — Handwriting Recognition
 
-A machine learning system that recognizes handwritten digits (0–9) using the K-Nearest Neighbors algorithm, trained on the full MNIST dataset (70,000 samples). Includes an interactive web UI where you can draw digits and get real-time predictions.
+A deep learning system that recognizes handwritten characters — **digits (0-9)**, **uppercase (A-Z)**, **lowercase (a-z)**, and **entire words** — using a Convolutional Neural Network trained on the EMNIST Balanced dataset (112,800 training samples, 47 classes). Features a modern React UI with real-time predictions.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![scikit-learn](https://img.shields.io/badge/scikit--learn-1.0+-orange)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red)
+![React](https://img.shields.io/badge/React-18+-61DAFB)
 ![Flask](https://img.shields.io/badge/Flask-3.0+-green)
 
-## Demo
+## Features
 
-Draw a digit on the canvas → get an instant prediction with confidence scores and probability distribution for all 10 classes.
+- **62-class recognition** — digits, uppercase letters, lowercase letters
+- **Word mode** — draw multiple characters, auto-segments and recognizes each one
+- **Mode filtering** — switch between Digits, Letters, All, or Word mode
+- **Modern React UI** — dark/light theme, animations, responsive design
+- **Drawing canvas** — adjustable stroke, undo support, touch-friendly
+- **Probability distribution** — see top predictions with confidence bars
+- **Prediction history** — track your past predictions
+- **Test sample gallery** — browse EMNIST samples with live predictions
+- **Keyboard shortcuts** — `Enter` predict, `Esc` clear, `Space` undo
 
 ## Project Structure
 
 ```
-├── app.py                          # Flask web app (backend + API)
-├── train.py                        # Model training script
-├── predict.py                      # CLI prediction script
-├── knn_digit_recognition.ipynb     # Jupyter notebook (full walkthrough)
-├── templates/
-│   └── index.html                  # Web UI (canvas + predictions)
-├── data/
-│   └── train.csv                   # MNIST dataset (70,000 samples)
-├── models/
-│   └── knn_digit_model.pkl         # Trained model
-├── outputs/                        # Generated plots and figures
-├── requirements.txt                # Python dependencies
-└── README.md
+├── backend/
+│   ├── app.py                  # Flask API server
+│   ├── model.py                # CNN architecture (PyTorch)
+│   ├── train_cnn.py            # Training script (EMNIST Balanced)
+│   ├── preprocess.py           # Image preprocessing & segmentation
+│   └── requirements.txt        # Backend dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx             # Main React component
+│   │   ├── components/         # UI components (Canvas, Header, etc.)
+│   │   ├── api/                # API client
+│   │   ├── hooks/              # Custom React hooks
+│   │   └── types/              # TypeScript interfaces
+│   ├── package.json
+│   └── vite.config.ts          # Vite + proxy config
+├── app.py                      # Original KNN version (legacy)
+├── train.py                    # Original KNN training (legacy)
+├── predict.py                  # CLI prediction tool
+├── knn_digit_recognition.ipynb # Jupyter notebook walkthrough
+├── models/                     # Saved model weights (gitignored)
+├── data/                       # Datasets (gitignored)
+└── outputs/                    # Training plots (gitignored)
 ```
 
-## Setup
+## Quick Start
+
+### 1. Clone & Install
 
 ```bash
-# Clone
 git clone https://github.com/SKULLFIRE07/digit-recognition.git
 cd digit-recognition
 
-# Virtual environment
-python3 -m venv venv
-source venv/bin/activate
+# Python dependencies
+pip install -r backend/requirements.txt
 
-# Install dependencies
-pip install -r requirements.txt
+# Frontend dependencies
+cd frontend && npm install && cd ..
 ```
 
-## Download Dataset
-
-The MNIST dataset (70,000 images) is not included in the repo. Run this to download it from the original source:
+### 2. Train the Model
 
 ```bash
-python -c "
-import numpy as np, struct, urllib.request, gzip, os, pandas as pd
-base = 'https://ossci-datasets.s3.amazonaws.com/mnist'
-files = {'ti': 'train-images-idx3-ubyte.gz', 'tl': 'train-labels-idx1-ubyte.gz',
-         'ei': 't10k-images-idx3-ubyte.gz', 'el': 't10k-labels-idx1-ubyte.gz'}
-tmp = '/tmp/mnist_raw'; os.makedirs(tmp, exist_ok=True)
-for k, f in files.items():
-    p = os.path.join(tmp, f)
-    if not os.path.exists(p): urllib.request.urlretrieve(f'{base}/{f}', p)
-def ri(p):
-    with gzip.open(p,'rb') as f: _,n,r,c=struct.unpack('>IIII',f.read(16)); return np.frombuffer(f.read(),dtype=np.uint8).reshape(n,r*c)
-def rl(p):
-    with gzip.open(p,'rb') as f: struct.unpack('>II',f.read(8)); return np.frombuffer(f.read(),dtype=np.uint8)
-X = np.vstack([ri(os.path.join(tmp,files['ti'])), ri(os.path.join(tmp,files['ei']))])
-y = np.concatenate([rl(os.path.join(tmp,files['tl'])), rl(os.path.join(tmp,files['el']))])
-df = pd.DataFrame(X, columns=[f'pixel{i}' for i in range(784)]); df.insert(0,'label',y.astype(int))
-os.makedirs('data', exist_ok=True); df.to_csv('data/train.csv', index=False)
-print(f'Downloaded {len(df)} samples')
-"
+cd backend
+python train_cnn.py
 ```
 
-## Train
+This downloads EMNIST Balanced (~500MB, automatic via torchvision), trains a CNN for 15 epochs, and saves the best model to `models/character_cnn.pth`.
+
+### 3. Build Frontend
 
 ```bash
-python train.py
+cd frontend
+npm run build
 ```
 
-Trains KNN with hyperparameter tuning (K=1–15), saves the best model to `models/knn_digit_model.pkl`, and generates evaluation plots in `outputs/`.
-
-## Web UI
+### 4. Run
 
 ```bash
+cd backend
 python app.py
 ```
 
-Open **http://localhost:5000** — draw a digit on the canvas and hit Predict.
+Open **http://localhost:5000** — draw characters and get predictions!
 
-Features:
-- Drawing canvas with adjustable stroke size
-- MNIST-accurate preprocessing (center of mass alignment)
-- Real-time prediction with confidence percentage
-- Probability distribution bars for all 10 digits
-- Undo support and prediction history
-- Test sample gallery from the dataset
-- Keyboard shortcuts: `Enter` predict, `Esc` clear, `Space` undo
+### Development Mode
 
-## CLI Prediction
+Run Flask and Vite dev server separately for hot reload:
 
 ```bash
-python predict.py                    # Predict on random test samples
-python predict.py --image digit.png  # Predict on a custom 28x28 image
+# Terminal 1: Backend
+cd backend && python app.py
+
+# Terminal 2: Frontend (with API proxy)
+cd frontend && npm run dev
 ```
-
-## Notebook
-
-```bash
-jupyter notebook knn_digit_recognition.ipynb
-```
-
-Full walkthrough including:
-- Data exploration and visualization
-- KNN implemented from scratch (pure NumPy)
-- KNN with scikit-learn
-- Confusion matrix and classification report
-- Hyperparameter tuning
-- Model persistence
 
 ## How It Works
 
-**K-Nearest Neighbors** classifies a digit by:
-1. Computing the distance between the input image and all training images (784-dimensional vectors)
-2. Selecting the K closest neighbors
-3. Taking a majority vote of their labels
+### CNN Architecture
 
-The web UI preprocesses canvas drawings to match MNIST format exactly:
-- Crops to bounding box of the drawn stroke
-- Fits into a 20x20 box preserving aspect ratio
-- Places in 28x28 frame centered by center of mass (using `scipy.ndimage`)
-- Normalizes pixel values to [0, 1]
+```
+Input: 1×28×28 grayscale image
+  ↓
+Conv2d(1→32) → BN → ReLU → Conv2d(32→32) → BN → ReLU → MaxPool → Dropout
+  ↓
+Conv2d(32→64) → BN → ReLU → Conv2d(64→64) → BN → ReLU → MaxPool → Dropout
+  ↓
+Conv2d(64→128) → BN → ReLU → MaxPool → Dropout
+  ↓
+Flatten → Linear(1152→256) → ReLU → Dropout → Linear(256→62)
+  ↓
+Output: 62 class probabilities (softmax)
+```
+
+### Preprocessing Pipeline
+
+Canvas drawings are converted to EMNIST format:
+1. Crop to bounding box of drawn content
+2. Fit into 20×20 box (preserving aspect ratio)
+3. Center in 28×28 frame by center of mass
+4. Normalize pixel values to [0, 1]
+
+### Word Segmentation
+
+In word mode, connected components are detected, merged for multi-part characters (i, j), sorted left-to-right, and each character is independently recognized.
 
 ## Results
 
 | Metric | Value |
 |--------|-------|
-| **Dataset** | MNIST (70,000 samples, Yann LeCun original) |
-| **Train/Test Split** | 80/20 |
-| **Best K** | 4 (distance-weighted) |
-| **Test Accuracy** | 97.36% |
-| **Training Samples** | 56,000 |
-| **Test Samples** | 14,000 |
-| **Image Size** | 28 x 28 px (784 features) |
+| **Dataset** | EMNIST Balanced (697,932 samples) |
+| **Classes** | 47 (0-9, A-Z, select a-z) |
+| **Model** | CNN (3 conv blocks, ~340K parameters) |
+| **Input Size** | 28 × 28 px |
 
 ## Tech Stack
 
-- **Python** — core language
-- **scikit-learn** — KNN classifier
-- **NumPy / Pandas** — data processing
-- **Matplotlib / Seaborn** — visualization
-- **SciPy** — center of mass preprocessing
-- **Flask** — web backend
-- **Pillow** — image processing
-- **HTML / CSS / JS** — web UI (vanilla, no frameworks)
+- **PyTorch** — CNN model training and inference
+- **React + TypeScript** — modern frontend UI
+- **Tailwind CSS** — utility-first styling
+- **Framer Motion** — smooth animations
+- **Vite** — fast build tooling
+- **Flask** — REST API backend
+- **SciPy** — image preprocessing (center of mass)
+- **Pillow** — image manipulation
+
+## Legacy KNN Version
+
+The original digit-only KNN version is preserved in the root files (`app.py`, `train.py`, `predict.py`, `templates/`). See the Jupyter notebook for a full walkthrough of the KNN approach.

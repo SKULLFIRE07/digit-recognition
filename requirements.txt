@@ -5,5 +5,8 @@ scikit-learn
 seaborn
 scipy
 flask
+flask-cors
 pillow
 jupyter
+torch
+torchvision
