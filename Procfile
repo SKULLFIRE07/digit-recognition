@@ -1,1 +1,1 @@
-web: cd backend && python3 app.py
+web: cd backend && /opt/venv/bin/python app.py

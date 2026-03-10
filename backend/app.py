@@ -153,9 +153,10 @@ def random_samples():
     """Return random test samples from EMNIST for the gallery."""
     try:
         from torchvision import datasets, transforms
+        data_root = os.path.join(os.path.dirname(__file__), '..', 'data')
         test_dataset = datasets.EMNIST(
-            root=os.path.join(os.path.dirname(__file__), '..', 'data'),
-            split='balanced', train=False, download=False,
+            root=data_root,
+            split='balanced', train=False, download=True,
             transform=transforms.ToTensor()
         )
 
