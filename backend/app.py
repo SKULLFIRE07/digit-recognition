@@ -2,6 +2,7 @@
 Character Recognition API
 ==========================
 Flask backend serving the CNN model for character/word recognition.
+Uses Test-Time Augmentation (TTA) for higher accuracy.
 
 Usage:
     python backend/app.py
@@ -18,6 +19,7 @@ import sys
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from PIL import Image
+from scipy.ndimage import shift as nd_shift, rotate as nd_rotate
 
 # Add backend to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
@@ -53,15 +55,47 @@ def load_model():
     print(f'Model loaded: {model_info["accuracy"]}% accuracy, {model_info["num_classes"]} classes')
 
 
-def predict_single(image_tensor, mode='all'):
-    """Run prediction on a single preprocessed image tensor."""
+def tta_predict(image_tensor):
+    """
+    Test-Time Augmentation: predict on original + augmented versions
+    and average the softmax probabilities for more robust predictions.
+    """
     if model is None:
-        return {'error': 'Model not loaded'}
+        return None
+
+    # image_tensor shape: (1, 1, 28, 28)
+    img = image_tensor[0, 0]  # (28, 28) numpy array
+
+    augmented = [image_tensor]  # original
+
+    # Small rotations
+    for angle in [-8, -4, 4, 8]:
+        rotated = nd_rotate(img, angle, reshape=False, order=1, mode='constant', cval=0)
+        augmented.append(rotated.reshape(1, 1, 28, 28).astype(np.float32))
+
+    # Small translations
+    for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        shifted = nd_shift(img, [dy, dx], order=1, mode='constant', cval=0)
+        augmented.append(shifted.reshape(1, 1, 28, 28).astype(np.float32))
+
+    # Batch all augmentations together
+    batch = np.concatenate(augmented, axis=0)  # (N, 1, 28, 28)
 
     with torch.no_grad():
-        tensor = torch.from_numpy(image_tensor).to(device)
+        tensor = torch.from_numpy(batch).to(device)
         logits = model(tensor)
-        probs = F.softmax(logits, dim=1)[0]
+        probs = F.softmax(logits, dim=1)
+
+    # Average probabilities across all augmentations
+    avg_probs = probs.mean(dim=0)
+    return avg_probs
+
+
+def predict_single(image_tensor, mode='all'):
+    """Run prediction with TTA on a single preprocessed image tensor."""
+    avg_probs = tta_predict(image_tensor)
+    if avg_probs is None:
+        return {'error': 'Model not loaded'}
 
     # Apply mode filtering
     if mode == 'digit':
@@ -72,8 +106,8 @@ def predict_single(image_tensor, mode='all'):
         valid_classes = ALL_CLASSES
 
     # Mask invalid classes and renormalize
-    masked_probs = torch.zeros_like(probs)
-    masked_probs[valid_classes] = probs[valid_classes]
+    masked_probs = torch.zeros_like(avg_probs)
+    masked_probs[valid_classes] = avg_probs[valid_classes]
     if masked_probs.sum() > 0:
         masked_probs = masked_probs / masked_probs.sum()
 
