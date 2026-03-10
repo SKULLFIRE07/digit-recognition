@@ -4,7 +4,7 @@ import { Hash, Type, ALargeSmall, FileText } from 'lucide-react'
 const modes: { id: RecognitionMode; label: string; icon: typeof Hash; desc: string }[] = [
   { id: 'digit', label: 'Digits', icon: Hash, desc: '0-9' },
   { id: 'letter', label: 'Letters', icon: Type, desc: 'A-Z, a-z' },
-  { id: 'all', label: 'All', icon: ALargeSmall, desc: '62 classes' },
+  { id: 'all', label: 'All', icon: ALargeSmall, desc: '47 classes' },
   { id: 'word', label: 'Word', icon: FileText, desc: 'Multi-char' },
 ]
 
@@ -24,16 +24,16 @@ export default function ModeSelector({ mode, onModeChange }: Props) {
             key={m.id}
             onClick={() => onModeChange(m.id)}
             className={`
-              flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-lg border-2 transition-all duration-200
+              flex-1 flex flex-col items-center gap-1 py-3.5 px-2 rounded-xl border-2 transition-all duration-200
               ${active
-                ? 'border-white dark:border-white bg-white dark:bg-white text-black'
-                : 'border-white/10 dark:border-white/10 hover:border-white/30 dark:hover:border-white/30 text-inherit'
+                ? 'border-themed bg-themed text-themed-inv'
+                : 'border-themed-muted hover:border-themed-subtle'
               }
             `}
           >
             <Icon className="w-5 h-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">{m.label}</span>
-            <span className={`text-[9px] ${active ? 'opacity-50' : 'opacity-25'}`}>{m.desc}</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">{m.label}</span>
+            <span className={`text-[9px] font-medium ${active ? 'opacity-50' : 'opacity-25'}`}>{m.desc}</span>
           </button>
         )
       })}

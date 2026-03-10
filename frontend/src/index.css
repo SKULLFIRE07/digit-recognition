@@ -7,9 +7,15 @@
 @layer base {
   html.dark {
     @apply bg-neutral-950 text-white;
+    --border: 255 255 255;
+    --surface: 0 0 0;
+    --accent: 255 255 255;
   }
   html:not(.dark) {
-    @apply bg-neutral-50 text-gray-900;
+    @apply bg-white text-gray-900;
+    --border: 0 0 0;
+    --surface: 255 255 255;
+    --accent: 0 0 0;
   }
   body {
     @apply antialiased m-0;
@@ -18,9 +24,18 @@
   }
 }
 
+/* Themed border/surface utilities */
+.border-themed { border-color: rgb(var(--border)); }
+.border-themed-muted { border-color: rgb(var(--border) / 0.12); }
+.border-themed-subtle { border-color: rgb(var(--border) / 0.06); }
+.bg-themed { background-color: rgb(var(--accent)); }
+.text-themed-inv { color: rgb(var(--surface)); }
+.bg-bar { background-color: rgb(var(--border)); }
+.bg-bar-track { background-color: rgb(var(--border) / 0.06); }
+
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--border) / 0.12); border-radius: 3px; }
 
 canvas { touch-action: none; cursor: crosshair; }
 
@@ -29,16 +44,18 @@ input[type="range"] {
   appearance: none;
   height: 2px;
   outline: none;
+  background: rgb(var(--border) / 0.3);
 }
-html.dark input[type="range"] { background: #fff; }
-html:not(.dark) input[type="range"] { background: #000; }
-
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 14px;
   height: 14px;
   border-radius: 50%;
   cursor: pointer;
+  background: rgb(var(--border));
 }
-html.dark input[type="range"]::-webkit-slider-thumb { background: #fff; }
-html:not(.dark) input[type="range"]::-webkit-slider-thumb { background: #000; }
+
+/* Confidence ring animation */
+@keyframes draw-ring {
+  from { stroke-dashoffset: 283; }
+}

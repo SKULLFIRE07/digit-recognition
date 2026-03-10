@@ -103,7 +103,7 @@ function App() {
 
       <Gallery />
 
-      <footer className="mt-12 pt-6 border-t border-white/5 flex gap-8 flex-wrap">
+      <footer className="mt-12 pt-6 border-t border-themed-subtle flex gap-8 flex-wrap">
         <FooterItem label="Model" value="CNN (PyTorch)" />
         <FooterItem label="Dataset" value="EMNIST Balanced" />
         <FooterItem label="Classes" value="47 (0-9, A-Z, a-z)" />
