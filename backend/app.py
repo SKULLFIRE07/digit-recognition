@@ -148,6 +148,22 @@ def predict():
     return jsonify(result)
 
 
+@app.route('/api/debug-preprocess', methods=['POST'])
+def debug_preprocess():
+    """Return the 28x28 image the model actually sees for debugging."""
+    data = request.get_json()
+    image_tensor = preprocess_canvas(data['image'])
+    # Convert to visible image
+    img_arr = (image_tensor[0, 0] * 255).astype(np.uint8)
+    img = Image.fromarray(img_arr, mode='L')
+    # Scale up for visibility
+    img_big = img.resize((280, 280), Image.NEAREST)
+    buf = io.BytesIO()
+    img_big.save(buf, format='PNG')
+    b64 = base64.b64encode(buf.getvalue()).decode()
+    return jsonify({'image': f'data:image/png;base64,{b64}'})
+
+
 @app.route('/api/predict-word', methods=['POST'])
 def predict_word():
     data = request.get_json()

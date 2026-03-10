@@ -4,48 +4,53 @@ Image Preprocessing
 Converts canvas drawings to 28x28 EMNIST-format images.
 Also handles character segmentation for word/text mode.
 
-Key: Canvas strokes are thick (10-30px), but EMNIST images have thin
-pen-like strokes. We erode/thin the strokes before resizing to match.
+Key insight: EMNIST images have thick, bright strokes (white_ratio ~0.25, mean ~140).
+Canvas drawings after resize are too thin and dim. We need to:
+1. Dilate (thicken) strokes after resizing to 28x28
+2. Boost brightness to match EMNIST intensity
 """
 
 import numpy as np
 import base64
 import io
-from PIL import Image, ImageFilter, ImageOps
-from scipy.ndimage import center_of_mass, shift, label, binary_erosion
+from PIL import Image, ImageFilter
+from scipy.ndimage import center_of_mass, shift, label, binary_dilation
 
 
-def thin_strokes(pixels, target_thickness=3):
+def match_emnist_style(canvas28):
     """
-    Thin thick canvas strokes to match EMNIST pen-like strokes.
-    Applies morphological erosion based on how thick the strokes are.
+    Transform a 28x28 preprocessed image to match EMNIST stroke style.
+    EMNIST has thick, bright strokes. Canvas drawings are too thin after resize.
     """
-    binary = pixels > 30
+    # Step 1: Binarize and dilate to thicken strokes
+    binary = canvas28 > 20
     if not binary.any():
-        return pixels
+        return canvas28
 
-    # Estimate stroke thickness by looking at the ratio of white pixels
-    # in the bounding box area
-    rows = np.any(binary, axis=1)
-    cols = np.any(binary, axis=0)
-    rmin, rmax = np.where(rows)[0][[0, -1]]
-    cmin, cmax = np.where(cols)[0][[0, -1]]
+    # Dilate to thicken strokes (EMNIST strokes are thick)
+    dilated = binary_dilation(binary, iterations=1)
 
-    bbox_area = max(1, (rmax - rmin + 1) * (cmax - cmin + 1))
-    white_ratio = binary[rmin:rmax+1, cmin:cmax+1].sum() / bbox_area
+    # Step 2: Create the output with smooth, bright strokes
+    # Use the dilated mask but with graduated intensity from original
+    result = np.zeros_like(canvas28)
 
-    # If white ratio is high, strokes are too thick - erode them
-    # EMNIST typically has white_ratio around 0.15-0.25
-    if white_ratio > 0.35:
-        # More erosion for thicker strokes
-        iterations = int((white_ratio - 0.25) * 10)
-        iterations = max(1, min(iterations, 5))
-        eroded = binary_erosion(binary, iterations=iterations)
-        # Keep original intensity where the eroded mask is True
-        result = np.where(eroded, pixels, 0).astype(np.float64)
-        return result
+    # Use Gaussian blur on original to create smooth thick strokes
+    img_pil = Image.fromarray(np.clip(canvas28, 0, 255).astype(np.uint8), mode='L')
+    blurred = np.array(img_pil.filter(ImageFilter.GaussianBlur(radius=1.0)), dtype=np.float64)
 
-    return pixels
+    # Combine: dilated region gets the blurred intensity, boosted
+    result = np.where(dilated, np.maximum(blurred * 2.0, canvas28), 0)
+    result = np.clip(result, 0, 255)
+
+    # Step 3: Boost overall brightness to match EMNIST (~140 mean for non-zero)
+    nonzero = result > 20
+    if nonzero.any():
+        current_mean = result[nonzero].mean()
+        if current_mean > 0 and current_mean < 120:
+            boost = 140.0 / current_mean
+            result[nonzero] = np.clip(result[nonzero] * boost, 0, 255)
+
+    return result
 
 
 def make_28x28(pixels):
@@ -53,6 +58,7 @@ def make_28x28(pixels):
     Convert a cropped character image to 28x28 EMNIST format.
     1. Fit into 20x20 box (preserving aspect ratio)
     2. Place in 28x28 frame centered by center of mass
+    3. Match EMNIST stroke style (thicken + brighten)
     """
     mask = pixels > 20
     if not mask.any():
@@ -93,13 +99,14 @@ def make_28x28(pixels):
         shift_x = np.clip(14.0 - cx, -4, 4)
         canvas28 = shift(canvas28, [shift_y, shift_x], order=1, mode='constant', cval=0)
 
+    # Match EMNIST stroke style
+    canvas28 = match_emnist_style(canvas28)
+
     return canvas28
 
 
 def preprocess_canvas(data_url):
-    """
-    Convert canvas data URL to a 28x28 EMNIST-format image tensor.
-    """
+    """Convert canvas data URL to a 28x28 EMNIST-format image tensor."""
     header, encoded = data_url.split(',', 1)
     img = Image.open(io.BytesIO(base64.b64decode(encoded))).convert('L')
     pixels = np.array(img, dtype=np.float64)
@@ -108,12 +115,9 @@ def preprocess_canvas(data_url):
     if not mask.any():
         return np.zeros((1, 1, 28, 28), dtype=np.float32)
 
-    # Thin thick canvas strokes to match EMNIST
-    pixels = thin_strokes(pixels)
-
     canvas28 = make_28x28(pixels)
 
-    # Normalize
+    # Normalize to [0, 1]
     canvas28 = np.clip(canvas28, 0, 255) / 255.0
     return canvas28.reshape(1, 1, 28, 28).astype(np.float32)
 
@@ -126,9 +130,6 @@ def segment_characters(data_url):
     header, encoded = data_url.split(',', 1)
     img = Image.open(io.BytesIO(base64.b64decode(encoded))).convert('L')
     pixels = np.array(img, dtype=np.float64)
-
-    # Thin strokes first
-    pixels = thin_strokes(pixels)
 
     # Binary threshold
     binary = (pixels > 30).astype(np.int32)
@@ -162,7 +163,7 @@ def segment_characters(data_url):
     if not components:
         return []
 
-    # Merge horizontally overlapping components (parts of same character like 'i', 'j')
+    # Merge horizontally overlapping components
     components.sort(key=lambda c: c['cmin'])
     merged = [components[0]]
     for comp in components[1:]:
