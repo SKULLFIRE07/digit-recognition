@@ -198,7 +198,9 @@ def serve_static(path):
     return send_from_directory(app.static_folder, 'index.html')
 
 
+load_model()
+
 if __name__ == '__main__':
-    load_model()
-    print('\n  http://localhost:5000\n')
-    app.run(debug=False, port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    print(f'\n  http://localhost:{port}\n')
+    app.run(debug=False, host='0.0.0.0', port=port)
