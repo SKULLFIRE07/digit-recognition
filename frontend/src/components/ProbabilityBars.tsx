@@ -1,4 +1,4 @@
-import { ProbabilityItem } from '../types'
+import type { ProbabilityItem } from '../types'
 
 interface Props {
   probabilities: ProbabilityItem[]

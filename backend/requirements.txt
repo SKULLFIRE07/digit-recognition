@@ -5,6 +5,3 @@ torchvision>=0.15
 numpy
 pillow
 scipy
-matplotlib
-seaborn
-scikit-learn

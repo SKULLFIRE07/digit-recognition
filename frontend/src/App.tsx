@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RecognitionMode, PredictionResult, WordResult } from './types'
+import type { RecognitionMode, PredictionResult, WordResult } from './types'
 import { predictCharacter, predictWord } from './api/predict'
 import { useCanvas } from './hooks/useCanvas'
 import Header from './components/Header'

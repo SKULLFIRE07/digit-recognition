@@ -1,4 +1,4 @@
-import { RecognitionMode } from '../types'
+import type { RecognitionMode } from '../types'
 import { Hash, Type, ALargeSmall, FileText } from 'lucide-react'
 
 const modes: { id: RecognitionMode; label: string; icon: typeof Hash; desc: string }[] = [

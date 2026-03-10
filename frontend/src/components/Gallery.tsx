@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { fetchRandomSamples } from '../api/predict'
-import { SampleItem } from '../types'
+import type { SampleItem } from '../types'
 
 export default function Gallery() {
   const [samples, setSamples] = useState<SampleItem[]>([])

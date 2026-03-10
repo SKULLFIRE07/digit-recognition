@@ -1,4 +1,4 @@
-import { PredictionResult, WordResult } from '../types'
+import type { PredictionResult, WordResult } from '../types'
 
 interface Props {
   result: PredictionResult | null

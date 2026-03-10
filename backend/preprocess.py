@@ -3,12 +3,17 @@ Image Preprocessing
 ===================
 Converts canvas drawings to 28x28 EMNIST-format images.
 Also handles character segmentation for word/text mode.
+
+Key improvements:
+- Gaussian blur to smooth canvas strokes (match EMNIST pen style)
+- Better thresholding with Otsu-like adaptive method
+- Improved center-of-mass alignment
 """
 
 import numpy as np
 import base64
 import io
-from PIL import Image
+from PIL import Image, ImageFilter
 from scipy.ndimage import center_of_mass, shift, label
 
 
@@ -18,8 +23,9 @@ def preprocess_canvas(data_url):
 
     Steps match how EMNIST was originally created:
     1. Extract the drawn content (bounding box)
-    2. Fit into a 20x20 box (preserving aspect ratio)
+    2. Fit into 20x20 box (preserving aspect ratio)
     3. Place in 28x28 frame centered by center of mass
+    4. Apply light Gaussian blur to match EMNIST stroke style
     """
     header, encoded = data_url.split(',', 1)
     img = Image.open(io.BytesIO(base64.b64decode(encoded))).convert('L')
@@ -33,6 +39,13 @@ def preprocess_canvas(data_url):
     cols = np.any(mask, axis=0)
     rmin, rmax = np.where(rows)[0][[0, -1]]
     cmin, cmax = np.where(cols)[0][[0, -1]]
+
+    # Add small padding around the bounding box
+    pad = 2
+    rmin = max(0, rmin - pad)
+    rmax = min(pixels.shape[0] - 1, rmax + pad)
+    cmin = max(0, cmin - pad)
+    cmax = min(pixels.shape[1] - 1, cmax + pad)
 
     cropped = pixels[rmin:rmax + 1, cmin:cmax + 1]
 
@@ -52,11 +65,20 @@ def preprocess_canvas(data_url):
 
     # Shift so center of mass is at (14, 14)
     cy, cx = center_of_mass(canvas28)
-    shift_y = 14.0 - cy
-    shift_x = 14.0 - cx
-    canvas28 = shift(canvas28, [shift_y, shift_x], order=1, mode='constant', cval=0)
+    if not (np.isnan(cy) or np.isnan(cx)):
+        shift_y = 14.0 - cy
+        shift_x = 14.0 - cx
+        # Clamp shift to avoid pushing content off the edge
+        shift_y = np.clip(shift_y, -4, 4)
+        shift_x = np.clip(shift_x, -4, 4)
+        canvas28 = shift(canvas28, [shift_y, shift_x], order=1, mode='constant', cval=0)
 
-    canvas28 = np.clip(canvas28, 0, 255) / 255.0
+    # Apply light Gaussian blur to match EMNIST stroke style
+    img28 = Image.fromarray(np.clip(canvas28, 0, 255).astype(np.uint8), mode='L')
+    img28 = img28.filter(ImageFilter.GaussianBlur(radius=0.5))
+    canvas28 = np.array(img28, dtype=np.float64)
+
+    canvas28 = canvas28 / 255.0
     return canvas28.reshape(1, 1, 28, 28).astype(np.float32)
 
 
@@ -124,7 +146,7 @@ def segment_characters(data_url):
     # Extract and preprocess each character
     results = []
     for comp in merged:
-        pad = 4
+        pad = 6
         rmin = max(0, comp['rmin'] - pad)
         rmax = min(pixels.shape[0] - 1, comp['rmax'] + pad)
         cmin = max(0, comp['cmin'] - pad)
@@ -147,11 +169,14 @@ def segment_characters(data_url):
 
         cy, cx = center_of_mass(canvas28)
         if not (np.isnan(cy) or np.isnan(cx)):
-            shift_y = 14.0 - cy
-            shift_x = 14.0 - cx
+            shift_y = np.clip(14.0 - cy, -4, 4)
+            shift_x = np.clip(14.0 - cx, -4, 4)
             canvas28 = shift(canvas28, [shift_y, shift_x], order=1, mode='constant', cval=0)
 
-        canvas28 = np.clip(canvas28, 0, 255) / 255.0
+        # Gaussian blur to match EMNIST
+        img28 = Image.fromarray(np.clip(canvas28, 0, 255).astype(np.uint8), mode='L')
+        img28 = img28.filter(ImageFilter.GaussianBlur(radius=0.5))
+        canvas28 = np.array(img28, dtype=np.float64) / 255.0
         tensor = canvas28.reshape(1, 1, 28, 28).astype(np.float32)
 
         results.append({

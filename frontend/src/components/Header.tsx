@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Sun, Moon, Brain, Zap } from 'lucide-react'
 import { fetchModelInfo } from '../api/predict'
-import { ModelInfo } from '../types'
+import type { ModelInfo } from '../types'
 
 export default function Header() {
   const [dark, setDark] = useState(true)

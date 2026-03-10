@@ -1,4 +1,4 @@
-import { PredictionResult, WordResult, SampleItem, ModelInfo } from '../types'
+import type { PredictionResult, WordResult, SampleItem, ModelInfo } from '../types'
 
 export async function predictCharacter(
   imageDataUrl: string,

@@ -1,7 +1,7 @@
 """
 Train Character Recognition CNN on EMNIST Balanced
 ====================================================
-Downloads EMNIST Balanced dataset (47 classes) and trains a CNN.
+Optimized for CPU training with strong data augmentation.
 
 Usage:
     cd backend && python train_cnn.py
@@ -34,14 +34,20 @@ def fix_emnist_orientation(img):
 
 
 def load_data(batch_size=256):
-    """Download and load EMNIST Balanced dataset."""
+    """Download and load EMNIST Balanced with augmentation."""
     print('Loading EMNIST Balanced dataset...')
-    print('(Downloads ~130MB on first run)\n')
 
     train_transform = transforms.Compose([
-        transforms.RandomRotation(8),
+        transforms.RandomRotation(15),
+        transforms.RandomAffine(
+            degrees=0,
+            translate=(0.08, 0.08),
+            scale=(0.9, 1.1),
+            shear=8,
+        ),
         transforms.ToTensor(),
     ])
+
     test_transform = transforms.Compose([
         transforms.ToTensor(),
     ])
@@ -55,14 +61,12 @@ def load_data(batch_size=256):
         transform=test_transform
     )
 
-    print(f'  Training samples: {len(train_dataset):,}')
-    print(f'  Test samples: {len(test_dataset):,}')
-    print(f'  Classes: {len(EMNIST_LABELS)}')
+    print(f'  Training: {len(train_dataset):,} | Test: {len(test_dataset):,} | Classes: {len(EMNIST_LABELS)}')
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                              num_workers=4, pin_memory=True)
+                              num_workers=2, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
-                             num_workers=4, pin_memory=True)
+                             num_workers=2, pin_memory=True)
 
     return train_loader, test_loader
 
@@ -160,28 +164,28 @@ def save_plots(train_losses, train_accs, test_accs, all_preds, all_labels):
 
 def main():
     print('=' * 60)
-    print('  Character Recognition CNN - EMNIST Balanced')
+    print('  CharacterAI CNN v2 - EMNIST Balanced')
+    print('  Optimized Architecture + Data Augmentation')
     print('=' * 60)
     print(f'  Device: {device}\n')
 
     os.makedirs('../models', exist_ok=True)
-    os.makedirs('../outputs', exist_ok=True)
 
     train_loader, test_loader = load_data(batch_size=256)
 
     model = CharacterCNN(num_classes=47).to(device)
     total_params = sum(p.numel() for p in model.parameters())
-    print(f'\n  Model parameters: {total_params:,}')
+    print(f'  Model parameters: {total_params:,}')
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.5)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
+    optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=15, eta_min=1e-5)
 
-    num_epochs = 8
+    num_epochs = 15
     best_acc = 0
     train_losses, train_accs, test_accs = [], [], []
 
-    print(f'\n  Training for {num_epochs} epochs...\n')
+    print(f'  Training for {num_epochs} epochs...\n')
     for epoch in range(1, num_epochs + 1):
         start = time.time()
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer)
@@ -193,10 +197,12 @@ def main():
         train_accs.append(train_acc)
         test_accs.append(test_acc)
 
+        lr = optimizer.param_groups[0]['lr']
         print(f'  Epoch {epoch:2d}/{num_epochs} | '
               f'Loss: {train_loss:.4f} | '
               f'Train: {train_acc:.2f}% | '
               f'Test: {test_acc:.2f}% | '
+              f'LR: {lr:.6f} | '
               f'Time: {elapsed:.1f}s')
 
         if test_acc > best_acc:
@@ -209,7 +215,7 @@ def main():
             }, '../models/character_cnn.pth')
             print(f'         -> Best model saved ({best_acc:.2f}%)')
 
-    # Final eval with best model
+    # Final eval
     print(f'\n  Loading best model ({best_acc:.2f}%)...')
     checkpoint = torch.load('../models/character_cnn.pth', map_location=device, weights_only=True)
     model.load_state_dict(checkpoint['model_state_dict'])
