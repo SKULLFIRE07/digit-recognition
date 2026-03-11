@@ -2,87 +2,75 @@
 Image Preprocessing
 ===================
 Converts canvas drawings to 28x28 EMNIST-format images.
-Also handles character segmentation for word/text mode.
 
-Key insight: EMNIST images have thick, bright strokes (white_ratio ~0.25, mean ~140).
-Canvas drawings after resize are too thin and dim. We need to:
-1. Dilate (thicken) strokes after resizing to 28x28
-2. Boost brightness to match EMNIST intensity
+Key insight: Canvas strokes are THICK (user draws with finger/mouse).
+When resized to 28x28, thick strokes fill gaps and "3" looks like "8".
+Solution: Use morphological THINNING (skeletonization) to normalize
+stroke width BEFORE placing in 28x28 frame.
 """
 
 import numpy as np
 import base64
 import io
-from PIL import Image, ImageFilter
-from scipy.ndimage import center_of_mass, shift, label, binary_dilation
+from PIL import Image, ImageFilter, ImageOps
+from scipy.ndimage import center_of_mass, shift, label
+from skimage.morphology import skeletonize, dilation, disk
 
 
-def match_emnist_style(canvas28):
+def preprocess_canvas(data_url):
     """
-    Transform a 28x28 preprocessed image to match EMNIST stroke style.
-    EMNIST has thick, bright strokes. Canvas drawings are too thin after resize.
+    Convert canvas data URL to a 28x28 EMNIST-format image tensor.
+
+    Proven approach used by top EMNIST/MNIST web apps:
+    1. Extract drawn content
+    2. Skeletonize to normalize stroke width
+    3. Dilate skeleton slightly to get EMNIST-like stroke width
+    4. Resize to fit 20x20 box
+    5. Center in 28x28 by center of mass
     """
-    # Step 1: Binarize and dilate to thicken strokes
-    binary = canvas28 > 20
-    if not binary.any():
-        return canvas28
+    header, encoded = data_url.split(',', 1)
+    img = Image.open(io.BytesIO(base64.b64decode(encoded))).convert('L')
+    pixels = np.array(img, dtype=np.float64)
 
-    # Dilate to thicken strokes (EMNIST strokes are thick)
-    dilated = binary_dilation(binary, iterations=1)
-
-    # Step 2: Create the output with smooth, bright strokes
-    # Use the dilated mask but with graduated intensity from original
-    result = np.zeros_like(canvas28)
-
-    # Use Gaussian blur on original to create smooth thick strokes
-    img_pil = Image.fromarray(np.clip(canvas28, 0, 255).astype(np.uint8), mode='L')
-    blurred = np.array(img_pil.filter(ImageFilter.GaussianBlur(radius=1.0)), dtype=np.float64)
-
-    # Combine: dilated region gets the blurred intensity, boosted
-    result = np.where(dilated, np.maximum(blurred * 2.0, canvas28), 0)
-    result = np.clip(result, 0, 255)
-
-    # Step 3: Boost overall brightness to match EMNIST (~140 mean for non-zero)
-    nonzero = result > 20
-    if nonzero.any():
-        current_mean = result[nonzero].mean()
-        if current_mean > 0 and current_mean < 120:
-            boost = 140.0 / current_mean
-            result[nonzero] = np.clip(result[nonzero] * boost, 0, 255)
-
-    return result
-
-
-def make_28x28(pixels):
-    """
-    Convert a cropped character image to 28x28 EMNIST format.
-    1. Fit into 20x20 box (preserving aspect ratio)
-    2. Place in 28x28 frame centered by center of mass
-    3. Match EMNIST stroke style (thicken + brighten)
-    """
     mask = pixels > 20
     if not mask.any():
-        return np.zeros((28, 28), dtype=np.float64)
+        return np.zeros((1, 1, 28, 28), dtype=np.float32)
 
+    # Crop to bounding box with padding
     rows = np.any(mask, axis=1)
     cols = np.any(mask, axis=0)
     rmin, rmax = np.where(rows)[0][[0, -1]]
     cmin, cmax = np.where(cols)[0][[0, -1]]
-
-    # Add small padding
-    pad = 2
+    pad = 5
     rmin = max(0, rmin - pad)
     rmax = min(pixels.shape[0] - 1, rmax + pad)
     cmin = max(0, cmin - pad)
     cmax = min(pixels.shape[1] - 1, cmax + pad)
-
     cropped = pixels[rmin:rmax + 1, cmin:cmax + 1]
 
+    # Skeletonize: reduce any stroke width to 1px skeleton
+    binary = cropped > 40
+    skeleton = skeletonize(binary)
+
+    # Dilate skeleton to get consistent EMNIST-like stroke width (~2-3px at this scale)
+    # Use disk proportional to image size to get consistent results
+    img_size = max(cropped.shape)
+    radius = max(1, int(img_size / 80))  # ~2-3px for typical 200-400px canvas
+    selem = disk(radius)
+    thick_skeleton = dilation(skeleton, selem)
+
+    # Convert back to grayscale with smooth edges
+    result = thick_skeleton.astype(np.float64) * 255
+    # Apply slight blur for anti-aliasing (EMNIST has soft edges)
+    result_img = Image.fromarray(result.astype(np.uint8), mode='L')
+    result_img = result_img.filter(ImageFilter.GaussianBlur(radius=0.8))
+    result = np.array(result_img, dtype=np.float64)
+
     # Fit into 20x20 box preserving aspect ratio
-    h, w = cropped.shape
+    h, w = result.shape
     scale = 20.0 / max(h, w)
     new_h, new_w = max(1, int(h * scale)), max(1, int(w * scale))
-    resized = np.array(Image.fromarray(cropped.astype(np.uint8)).resize(
+    resized = np.array(Image.fromarray(result.astype(np.uint8)).resize(
         (new_w, new_h), Image.LANCZOS
     ), dtype=np.float64)
 
@@ -99,25 +87,6 @@ def make_28x28(pixels):
         shift_x = np.clip(14.0 - cx, -4, 4)
         canvas28 = shift(canvas28, [shift_y, shift_x], order=1, mode='constant', cval=0)
 
-    # Match EMNIST stroke style
-    canvas28 = match_emnist_style(canvas28)
-
-    return canvas28
-
-
-def preprocess_canvas(data_url):
-    """Convert canvas data URL to a 28x28 EMNIST-format image tensor."""
-    header, encoded = data_url.split(',', 1)
-    img = Image.open(io.BytesIO(base64.b64decode(encoded))).convert('L')
-    pixels = np.array(img, dtype=np.float64)
-
-    mask = pixels > 20
-    if not mask.any():
-        return np.zeros((1, 1, 28, 28), dtype=np.float32)
-
-    canvas28 = make_28x28(pixels)
-
-    # Normalize to [0, 1]
     canvas28 = np.clip(canvas28, 0, 255) / 255.0
     return canvas28.reshape(1, 1, 28, 28).astype(np.float32)
 
@@ -131,12 +100,10 @@ def segment_characters(data_url):
     img = Image.open(io.BytesIO(base64.b64decode(encoded))).convert('L')
     pixels = np.array(img, dtype=np.float64)
 
-    # Binary threshold
     binary = (pixels > 30).astype(np.int32)
     if not binary.any():
         return []
 
-    # Find connected components
     labeled, num_features = label(binary)
     if num_features == 0:
         return []
@@ -163,7 +130,6 @@ def segment_characters(data_url):
     if not components:
         return []
 
-    # Merge horizontally overlapping components
     components.sort(key=lambda c: c['cmin'])
     merged = [components[0]]
     for comp in components[1:]:
@@ -180,10 +146,9 @@ def segment_characters(data_url):
         else:
             merged.append(comp)
 
-    # Extract and preprocess each character
     results = []
     for comp in merged:
-        pad = 6
+        pad = 8
         rmin = max(0, comp['rmin'] - pad)
         rmax = min(pixels.shape[0] - 1, comp['rmax'] + pad)
         cmin = max(0, comp['cmin'] - pad)
@@ -191,7 +156,37 @@ def segment_characters(data_url):
 
         char_img = pixels[rmin:rmax + 1, cmin:cmax + 1]
 
-        canvas28 = make_28x28(char_img)
+        # Skeletonize + dilate + resize same as single char
+        binary_char = char_img > 40
+        if not binary_char.any():
+            continue
+        skeleton = skeletonize(binary_char)
+        img_size = max(char_img.shape)
+        radius = max(1, int(img_size / 80))
+        selem = disk(radius)
+        thick = dilation(skeleton, selem).astype(np.float64) * 255
+        thick_img = Image.fromarray(thick.astype(np.uint8), mode='L')
+        thick_img = thick_img.filter(ImageFilter.GaussianBlur(radius=0.8))
+        thick = np.array(thick_img, dtype=np.float64)
+
+        h, w = thick.shape
+        scale = 20.0 / max(h, w)
+        new_h, new_w = max(1, int(h * scale)), max(1, int(w * scale))
+        resized = np.array(Image.fromarray(thick.astype(np.uint8)).resize(
+            (new_w, new_h), Image.LANCZOS
+        ), dtype=np.float64)
+
+        canvas28 = np.zeros((28, 28), dtype=np.float64)
+        y_off = (28 - new_h) // 2
+        x_off = (28 - new_w) // 2
+        canvas28[y_off:y_off + new_h, x_off:x_off + new_w] = resized
+
+        cy, cx = center_of_mass(canvas28)
+        if not (np.isnan(cy) or np.isnan(cx)):
+            shift_y = np.clip(14.0 - cy, -4, 4)
+            shift_x = np.clip(14.0 - cx, -4, 4)
+            canvas28 = shift(canvas28, [shift_y, shift_x], order=1, mode='constant', cval=0)
+
         canvas28 = np.clip(canvas28, 0, 255) / 255.0
         tensor = canvas28.reshape(1, 1, 28, 28).astype(np.float32)
 
